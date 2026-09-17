@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Market Maker Arena</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #171d2b;
+    --panel-2: #1e2537;
+    --border: #2a3247;
+    --text: #e6e9f0;
+    --muted: #8b93a7;
+    --green: #3ecf8e;
+    --red: #ef6461;
+    --blue: #5b9bd5;
+    --accent: #f2b134;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 24px;
+    display: flex;
+    justify-content: center;
+  }
+  .wrap { width: 100%; max-width: 880px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px 0; }
+  .subtitle { color: var(--muted); margin: 0 0 20px 0; font-size: 0.95rem; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .row > .card { flex: 1; min-width: 260px; }
+  .stat-line { display: flex; justify-content: space-between; margin: 6px 0; font-size: 0.95rem; }
+  .stat-line .label { color: var(--muted); }
+  .big-value { font-size: 2rem; font-weight: 600; }
+  svg.spark { width: 100%; height: 70px; display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  tr.you td { color: var(--accent); font-weight: 600; }
+  .quote-form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { color: var(--muted); font-size: 0.85rem; }
+  input[type="number"] {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 1rem;
+    width: 120px;
+  }
+  button {
+    background: var(--blue);
+    color: #0b1220;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 18px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .error { color: var(--red); font-size: 0.9rem; margin-top: 8px; min-height: 1.2em; }
+  .trade-line { font-size: 0.9rem; margin: 4px 0; }
+  .trade-tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-right: 6px;
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+  .informed { color: var(--red); }
+  .log-entry { border-bottom: 1px solid var(--border); padding: 8px 0; font-size: 0.88rem; }
+  .log-entry:last-child { border-bottom: none; }
+  .pnl-pos { color: var(--green); }
+  .pnl-neg { color: var(--red); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+  .final-banner {
+    text-align: center;
+    font-size: 1.3rem;
+    padding: 20px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Market Maker Arena</h1>
+  <p class="subtitle">Quote a bid and ask every round. Beat three bots and a wandering price to the biggest P&amp;L.</p>
+
+  <div class="card">
+    <details>
+      <summary>How this works</summary>
+      <p style="color:var(--muted); font-size:0.9rem; line-height:1.5;">
+        Every round, you and three bots each post a <strong>bid</strong> (the price you'll buy at)
+        and an <strong>ask</strong> (the price you'll sell at) &mdash; without seeing each other's quotes.
+        Two things can trade:
+      </p>
+      <ul style="color:var(--muted); font-size:0.9rem; line-height:1.6;">
+        <li><strong>Crossed quotes:</strong> if the best bid on the board is &ge; the best ask, those two
+          traders trade with each other at the midpoint.</li>
+        <li><strong>The customer:</strong> one outside trader shows up every round and always takes the
+          best available price. Sometimes it's <span class="informed">informed</span> &mdash; it already
+          knows which way the price is about to move, and only trades when that's bad for its counterparty.
+          That's adverse selection: quoting a stale or careless price gets you picked off.</li>
+      </ul>
+      <p style="color:var(--muted); font-size:0.9rem; line-height:1.5;">
+        At the end of each round the "true value" is revealed and everyone's position is marked to it,
+        so you can see how much you made from spread vs. how much inventory risk cost or earned you.
+        Bots: <strong>Steady Eddie</strong> (fixed wide spread, never adapts),
+        <strong>Nervous Nick</strong> (fixed spread, leans against his own inventory),
+        <strong>Sharp Sam</strong> (widens when the market's choppy, leans hardest against inventory).
+      </p>
+    </details>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <div class="stat-line"><span class="label">Round</span><span id="round-label">-</span></div>
+      <div class="stat-line"><span class="label">Last revealed value</span></div>
+      <div class="big-value" id="last-value">-</div>
+      <svg class="spark" id="sparkline" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="card" id="leaderboard-card">
+      <div class="stat-line"><span class="label">Leaderboard</span><span></span></div>
+      <table id="leaderboard">
+        <thead><tr><th>Player</th><th>Inventory</th><th>Cash</th><th>P&amp;L</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stat-line"><span class="label">Your quote</span><span></span></div>
+    <div class="quote-form">
+      <div class="field">
+        <label for="bid-input">Bid</label>
+        <input type="number" id="bid-input" step="0.1" placeholder="e.g. 98.5">
+      </div>
+      <div class="field">
+        <label for="ask-input">Ask</label>
+        <input type="number" id="ask-input" step="0.1" placeholder="e.g. 101.5">
+      </div>
+      <button id="submit-quote">Submit quote</button>
+      <button id="new-game" class="secondary">New game</button>
+    </div>
+    <div class="error" id="error-msg"></div>
+  </div>
+
+  <div class="card" id="round-result" style="display:none;">
+    <div class="stat-line"><span class="label">Last round result</span><span></span></div>
+    <table id="quotes-table">
+      <thead><tr><th>Player</th><th>Bid</th><th>Ask</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="trades-list" style="margin-top:10px;"></div>
+    <div class="stat-line" style="margin-top:10px;">
+      <span class="label">Value revealed at end of round</span>
+      <span id="revealed-value" style="font-weight:600;"></span>
+    </div>
+  </div>
+
+  <div class="card" id="final-card" style="display:none;">
+    <div class="final-banner" id="final-message"></div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>Round history</summary>
+      <div id="log-list"></div>
+    </details>
+  </div>
+</div>
+
+<script>
+const ROUND_LABEL = document.getElementById("round-label");
+const LAST_VALUE = document.getElementById("last-value");
+const SPARK = document.getElementById("sparkline");
+const LEADERBOARD = document.querySelector("#leaderboard tbody");
+const BID_INPUT = document.getElementById("bid-input");
+const ASK_INPUT = document.getElementById("ask-input");
+const SUBMIT_BTN = document.getElementById("submit-quote");
+const NEW_GAME_BTN = document.getElementById("new-game");
+const ERROR_MSG = document.getElementById("error-msg");
+const ROUND_RESULT = document.getElementById("round-result");
+const QUOTES_TABLE = document.querySelector("#quotes-table tbody");
+const TRADES_LIST = document.getElementById("trades-list");
+const REVEALED_VALUE = document.getElementById("revealed-value");
+const FINAL_CARD = document.getElementById("final-card");
+const FINAL_MESSAGE = document.getElementById("final-message");
+const LOG_LIST = document.getElementById("log-list");
+
+function fmtMoney(x) {
+  const cls = x >= 0 ? "pnl-pos" : "pnl-neg";
+  return `<span class="${cls}">${x.toFixed(2)}</span>`;
+}
+
+function drawSparkline(history) {
+  if (history.length < 2) { SPARK.innerHTML = ""; return; }
+  const w = 300, h = 70, pad = 6;
+  const min = Math.min(...history), max = Math.max(...history);
+  const range = (max - min) || 1;
+  const pts = history.map((v, i) => {
+    const x = pad + (i / (history.length - 1)) * (w - 2 * pad);
+    const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  SPARK.innerHTML = `<polyline points="${pts}" fill="none" stroke="#5b9bd5" stroke-width="2" />`;
+}
+
+function renderState(state) {
+  ROUND_LABEL.textContent = `${state.round} / ${state.num_rounds}`;
+  LAST_VALUE.textContent = state.last_value.toFixed(2);
+  drawSparkline(state.history);
+
+  const rows = Object.keys(state.pnl)
+    .sort((a, b) => state.pnl[b] - state.pnl[a])
+    .map(name => {
+      const cls = name === "You" ? ' class="you"' : "";
+      return `<tr${cls}><td>${name}</td><td>${state.inventories[name]}</td>` +
+             `<td>${fmtMoney(state.cash[name])}</td><td>${fmtMoney(state.pnl[name])}</td></tr>`;
+    }).join("");
+  LEADERBOARD.innerHTML = rows;
+
+  LOG_LIST.innerHTML = state.log.slice().reverse().map(r => {
+    const tradeStr = r.trades.map(describeTrade).join(" &middot; ");
+    return `<div class="log-entry">Round ${r.round}: revealed ${r.revealed_value.toFixed(2)} &mdash; ${tradeStr || "no trades"}</div>`;
+  }).join("");
+
+  if (state.game_over) {
+    FINAL_CARD.style.display = "block";
+    const winner = Object.keys(state.pnl).sort((a, b) => state.pnl[b] - state.pnl[a])[0];
+    const yourRank = Object.keys(state.pnl).sort((a, b) => state.pnl[b] - state.pnl[a]).indexOf("You") + 1;
+    FINAL_MESSAGE.innerHTML = winner === "You"
+      ? `You won! Final P&amp;L: ${fmtMoney(state.pnl["You"])}`
+      : `Game over &mdash; you finished #${yourRank}. ${winner} won with ${fmtMoney(state.pnl[winner])}. Your P&amp;L: ${fmtMoney(state.pnl["You"])}`;
+    SUBMIT_BTN.disabled = true;
+    BID_INPUT.disabled = true;
+    ASK_INPUT.disabled = true;
+  } else {
+    FINAL_CARD.style.display = "none";
+    SUBMIT_BTN.disabled = false;
+    BID_INPUT.disabled = false;
+    ASK_INPUT.disabled = false;
+  }
+}
+
+function describeTrade(t) {
+  if (t.type === "crossed_market") {
+    return `<span class="trade-tag">crossed</span>${t.buyer} bought from ${t.seller} @ ${t.price.toFixed(2)}`;
+  }
+  const tag = t.informed ? '<span class="trade-tag informed">informed</span>' : '<span class="trade-tag">customer</span>';
+  if (t.side === "buy") {
+    return `${tag}customer bought from ${t.counterparty} @ ${t.price.toFixed(2)}`;
+  }
+  return `${tag}customer sold to ${t.counterparty} @ ${t.price.toFixed(2)}`;
+}
+
+function renderRoundResult(summary) {
+  ROUND_RESULT.style.display = "block";
+  QUOTES_TABLE.innerHTML = Object.keys(summary.quotes).map(name => {
+    const q = summary.quotes[name];
+    const cls = name === "You" ? ' class="you"' : "";
+    return `<tr${cls}><td>${name}</td><td>${q.bid.toFixed(2)}</td><td>${q.ask.toFixed(2)}</td></tr>`;
+  }).join("");
+  TRADES_LIST.innerHTML = summary.trades.length
+    ? summary.trades.map(t => `<div class="trade-line">${describeTrade(t)}</div>`).join("")
+    : `<div class="trade-line" style="color:var(--muted);">No trades this round.</div>`;
+  REVEALED_VALUE.textContent = summary.revealed_value.toFixed(2);
+}
+
+async function fetchState() {
+  const res = await fetch("/api/state");
+  const state = await res.json();
+  renderState(state);
+}
+
+async function submitQuote() {
+  ERROR_MSG.textContent = "";
+  const bid = parseFloat(BID_INPUT.value);
+  const ask = parseFloat(ASK_INPUT.value);
+  if (isNaN(bid) || isNaN(ask)) {
+    ERROR_MSG.textContent = "Enter a bid and an ask.";
+    return;
+  }
+  if (ask < bid) {
+    ERROR_MSG.textContent = "Your ask can't be below your bid.";
+    return;
+  }
+  SUBMIT_BTN.disabled = true;
+  try {
+    const res = await fetch("/api/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bid, ask }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      ERROR_MSG.textContent = data.error || "Something went wrong.";
+      SUBMIT_BTN.disabled = false;
+      return;
+    }
+    renderRoundResult(data.round_summary);
+    renderState(data.state);
+    BID_INPUT.value = "";
+    ASK_INPUT.value = "";
+  } catch (e) {
+    ERROR_MSG.textContent = "Could not reach the server.";
+    SUBMIT_BTN.disabled = false;
+  }
+}
+
+async function newGame() {
+  ERROR_MSG.textContent = "";
+  ROUND_RESULT.style.display = "none";
+  const res = await fetch("/api/new_game", { method: "POST" });
+  const state = await res.json();
+  renderState(state);
+}
+
+SUBMIT_BTN.addEventListener("click", submitQuote);
+NEW_GAME_BTN.addEventListener("click", newGame);
+[BID_INPUT, ASK_INPUT].forEach(el => el.addEventListener("keydown", e => {
+  if (e.key === "Enter") submitQuote();
+}));
+
+fetchState();
+</script>
+</body>
+</html>

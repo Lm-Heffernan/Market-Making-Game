@@ -16,6 +16,21 @@ python3 -m venv .venv
 
 Then open http://127.0.0.1:5050
 
+## Deploy it (make it a public link)
+
+Free option: [Render](https://render.com).
+
+1. Push this repo to GitHub (already done if you're reading this on GitHub).
+2. On Render: **New > Web Service**, connect this repo.
+3. Build command: `pip install -r requirements.txt`
+4. Start command: `gunicorn app:app`
+5. Deploy. Render gives you a public `https://...onrender.com` URL.
+
+Free tier sleeps after 15 minutes idle and takes ~30–50s to wake back up
+on the next visit — normal, not a bug. Each visitor gets their own
+independent game (tracked by a session cookie), so multiple people can
+play at once without interfering with each other.
+
 ## How the game works
 
 Each round, every participant (you + 3 bots) posts a **bid** (price they'll

@@ -22,13 +22,21 @@ made from capturing the spread, and how much you gained or lost from
 whatever inventory you were carrying when the price moved.
 
 Run it with:  python app.py    then open http://127.0.0.1:5050
+
+Each visitor gets their own independent game, tracked via a session
+cookie -- so this is safe to host publicly with more than one person
+playing at a time.
 """
 
 import random
+import uuid
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, session
 
 app = Flask(__name__)
+# Only used to sign the session cookie that tags each visitor with their own
+# game -- this app has no logins or sensitive data, so a fixed value is fine.
+app.secret_key = "market-maker-arena-session-key"
 
 NUM_ROUNDS = 20
 STARTING_VALUE = 100.0
@@ -93,7 +101,18 @@ def new_game():
     }
 
 
-GAME = new_game()
+GAMES: dict[str, dict] = {}
+
+
+def get_game():
+    """Each visitor is tagged with a game id in their session cookie, so
+    concurrent players don't share or clobber each other's state."""
+    game_id = session.get("game_id")
+    if game_id is None or game_id not in GAMES:
+        game_id = str(uuid.uuid4())
+        session["game_id"] = game_id
+        GAMES[game_id] = new_game()
+    return GAMES[game_id]
 
 
 def compute_recent_volatility(history):
@@ -195,12 +214,13 @@ def index():
 
 @app.route("/api/state")
 def api_state():
-    return jsonify(public_state(GAME))
+    return jsonify(public_state(get_game()))
 
 
 @app.route("/api/quote", methods=["POST"])
 def api_quote():
-    if GAME["game_over"]:
+    game = get_game()
+    if game["game_over"]:
         return jsonify({"error": "Game over -- start a new game."}), 400
 
     data = request.get_json(force=True, silent=True) or {}
@@ -213,33 +233,35 @@ def api_quote():
     if ask < bid:
         return jsonify({"error": "Your ask can't be below your bid."}), 400
 
-    bot_quotes = {name: fn(GAME) for name, fn in BOTS.items()}
-    all_quotes, trades, next_value = clear_round(GAME, bot_quotes, bid, ask)
+    bot_quotes = {name: fn(game) for name, fn in BOTS.items()}
+    all_quotes, trades, next_value = clear_round(game, bot_quotes, bid, ask)
 
-    GAME["history"].append(next_value)
-    GAME["last_value"] = next_value
-    GAME["recent_volatility"] = compute_recent_volatility(GAME["history"])
-    GAME["round"] += 1
-    if GAME["round"] >= NUM_ROUNDS:
-        GAME["game_over"] = True
+    game["history"].append(next_value)
+    game["last_value"] = next_value
+    game["recent_volatility"] = compute_recent_volatility(game["history"])
+    game["round"] += 1
+    if game["round"] >= NUM_ROUNDS:
+        game["game_over"] = True
 
     round_summary = {
-        "round": GAME["round"],
+        "round": game["round"],
         "quotes": {n: {"bid": round(b, 2), "ask": round(a, 2)} for n, (b, a) in all_quotes.items()},
         "trades": trades,
         "revealed_value": round(next_value, 2),
     }
-    GAME["log"].append(round_summary)
+    game["log"].append(round_summary)
 
-    return jsonify({"round_summary": round_summary, "state": public_state(GAME)})
+    return jsonify({"round_summary": round_summary, "state": public_state(game)})
 
 
 @app.route("/api/new_game", methods=["POST"])
 def api_new_game():
-    global GAME
-    GAME = new_game()
-    return jsonify(public_state(GAME))
+    game_id = str(uuid.uuid4())
+    session["game_id"] = game_id
+    GAMES[game_id] = new_game()
+    return jsonify(public_state(GAMES[game_id]))
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5050)
+    import os
+    app.run(debug=True, port=int(os.environ.get("PORT", 5050)))

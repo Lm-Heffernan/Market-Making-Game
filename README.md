@@ -70,6 +70,52 @@ much came from the inventory you were carrying when the price moved.
   control model — so there's real room to beat him with good judgment
   about when to quote wide vs. tight.
 
+## Architecture
+
+Three layers, no database:
+
+```
+Browser (templates/index.html + vanilla JS)
+   |  fetch() calls to /api/*
+Flask routes (app.py)
+   |  read / write
+In-memory game state (one plain dict per visitor)
+```
+
+**Data model.** A "game" is a single dict: `round`, `last_value` (current
+fair value), `history` (every past value), `cash` and `inventories` per
+participant, `recent_volatility`, and a `log` of past rounds. No ORM, no
+tables — the state is small enough that a dict is the honest right answer.
+
+**Per-visitor state.** `GAMES` is a `dict[session_id -> game_dict]`. Flask's
+signed session cookie gives each visitor an opaque id; `get_game()` looks up
+(or creates) that visitor's game by it. This is what makes the app safe for
+more than one person to play at once — the first version used a single
+shared game, which broke the moment a second visitor loaded the page. The
+tradeoff: state lives only in server memory, so it's per-process (a restart
+or a second server instance starts everyone fresh) — fine here, but it's
+the reason a real deployment would swap this for Redis or a database.
+
+**One request, traced.** Submitting a quote: the frontend `fetch`s
+`/api/quote` → `get_game()` fetches your dict by cookie → each bot function
+(`steady_eddie`, `nervous_nick`, `sharp_sam`) is called with the game dict
+and returns its own `(bid, ask)` → `clear_round()` decides what trades
+happen → the game dict is mutated (new fair value appended, round
+incremented) → `public_state()` reshapes the internal dict into rounded,
+JSON-friendly numbers → the frontend re-renders the leaderboard, sparkline,
+and round log from that response.
+
+**The matching algorithm (`clear_round`).** In order: (1) collect all four
+quotes, (2) find the best bid and best ask across everyone and execute one
+midpoint trade if they cross and belong to different participants, (3)
+generate the next fair value, (4) decide if the customer is informed (knows
+the sign of that move) or random, (5) the customer trades once against
+whoever has the best price on the side it wants. Crossed-quotes and the
+customer are kept as two separate checks on purpose — they model two
+different real things (competition between market makers vs. external order
+flow), and merging them into one matching engine would obscure which effect
+caused which trade.
+
 ## Why this design
 
 The three ideas this game is built to make concrete, without needing any

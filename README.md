@@ -1,8 +1,10 @@
 # Market Maker Arena
 
-Small browser game I built to practice market making concepts (spread capture, inventory risk, adverse selection) without needing the full stochastic calculus behind models like Avellaneda-Stoikov. You and 3 bots each quote a bid/ask every round, trades happen when quotes cross or when a simulated "customer" trades against the best price on the board, and P&L is marked to the true value at the end of each round.
+A browser game where you compete against 3 bots as a market maker. Each round everyone quotes a bid/ask, trades happen when quotes cross or when a simulated "customer" trades against the best price on the board, and P&L gets marked to the true value at the end of each round.
 
-## Setup
+Built to practice market making concepts (spread capture, inventory risk, adverse selection) without needing the full stochastic calculus behind models like Avellaneda-Stoikov.
+
+## Run it locally
 
 ```
 python3 -m venv .venv
@@ -10,7 +12,7 @@ python3 -m venv .venv
 .venv/bin/python app.py
 ```
 
-Open http://127.0.0.1:5050
+Then open http://127.0.0.1:5050 in a browser.
 
 ## How to play
 
@@ -39,12 +41,12 @@ No database, everything in memory.
 
 Known limitation: state is only in server memory, so a restart or scaling to multiple server processes wipes/splits it. Fine for this, would need Redis or a real DB otherwise.
 
-## Deploy (Render, free)
+## Deploying your own copy (Render, free)
 
-1. Push to GitHub.
-2. Render: New > Web Service, connect the repo.
+1. Fork or clone this repo to your own GitHub account.
+2. On [render.com](https://render.com): New > Web Service, connect the repo.
 3. Build command: `pip install -r requirements.txt`
 4. Start command: `gunicorn app:app`
-5. Deploy.
+5. Deploy. Render gives you a public URL.
 
-Free tier sleeps after 15 min idle, takes ~30-50s to wake up on next visit.
+Free tier sleeps after 15 min idle, takes ~30-50s to wake up on the next visit.
